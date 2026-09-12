@@ -1,0 +1,114 @@
+* {
+  box-sizing: border-box;
+}
+
+html,
+body,
+#root {
+  min-height: 100%;
+  margin: 0;
+}
+
+body {
+  background: #f4f7f3;
+  color: #1f2b24;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", "PingFang SC", sans-serif;
+}
+
+.auth-shell {
+  min-height: 100vh;
+  display: grid;
+  grid-template-columns: minmax(300px, 520px) 1fr;
+  background:
+    radial-gradient(circle at 85% 12%, rgba(130, 184, 137, 0.35), transparent 32%),
+    linear-gradient(135deg, #f7faf5 0%, #e4efe6 100%);
+}
+
+.auth-card {
+  align-self: center;
+  margin: 40px auto;
+  width: min(440px, calc(100vw - 40px));
+  padding: 32px;
+  background: rgba(255, 255, 255, 0.94);
+  border: 1px solid rgba(47, 107, 79, 0.12);
+  border-radius: 20px;
+  box-shadow: 0 24px 70px rgba(32, 67, 48, 0.14);
+}
+
+.auth-art {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 60px;
+  font-size: clamp(32px, 5vw, 76px);
+  font-weight: 700;
+  color: #285b42;
+  line-height: 1.2;
+}
+
+.page-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.metric-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+  gap: 16px;
+}
+
+.metric-value {
+  font-size: 28px;
+  font-weight: 700;
+}
+
+.metric-label {
+  color: #64756b;
+}
+
+.photo-compare {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+.photo-compare img,
+.photo-thumb {
+  width: 100%;
+  min-height: 240px;
+  max-height: 480px;
+  object-fit: contain;
+  background: #eef2ed;
+  border-radius: 12px;
+}
+
+.photo-thumb.small {
+  min-height: 0;
+  height: 160px;
+}
+
+.chart-wrap {
+  width: 100%;
+  height: 360px;
+}
+
+.rose-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(110px, 1fr));
+  gap: 10px;
+}
+
+@media (max-width: 840px) {
+  .auth-shell {
+    display: block;
+  }
+
+  .auth-art {
+    display: none;
+  }
+
+  .photo-compare {
+    grid-template-columns: 1fr;
+  }
+}

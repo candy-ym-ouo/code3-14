@@ -1,0 +1,514 @@
+generator client {
+  provider      = "prisma-client-js"
+  binaryTargets = ["native", "linux-arm64-openssl-3.0.x", "debian-openssl-3.0.x"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+enum UserStatus {
+  ACTIVE
+  DELETING
+  DELETED
+}
+
+enum WorkspaceRole {
+  OWNER
+  EDITOR
+  VIEWER
+}
+
+enum LightLevel {
+  DARK
+  LOW
+  INDIRECT
+  BRIGHT
+  DIRECT
+}
+
+enum WindDirection {
+  N
+  NNE
+  NE
+  ENE
+  E
+  ESE
+  SE
+  SSE
+  S
+  SSW
+  SW
+  WSW
+  W
+  WNW
+  NW
+  NNW
+}
+
+enum PlantStatus {
+  HEALTHY
+  WATCH
+  CONCERN
+  CRITICAL
+}
+
+enum SoilMoistureSource {
+  ESTIMATED
+  MEASURED
+}
+
+enum ActionType {
+  SHADE
+  WATER
+  REPOT
+  MOVE
+  FERTILIZE
+  PRUNE
+  CUSTOM
+}
+
+enum ReminderType {
+  WATERING
+  REPOTTING
+  OBSERVATION
+  TEMPERATURE
+  LIGHT
+  CUSTOM
+}
+
+enum TargetType {
+  WORKSPACE
+  BALCONY
+  ZONE
+  PLANT
+}
+
+enum TriggerMode {
+  INTERVAL
+  ONCE
+  THRESHOLD
+}
+
+enum IntervalUnit {
+  MINUTE
+  DAY
+  WEEK
+  MONTH
+}
+
+enum ReminderStatus {
+  PENDING
+  SENT
+  SNOOZED
+  DONE
+  DISMISSED
+  FAILED
+}
+
+enum NotificationChannel {
+  IN_APP
+  EMAIL
+}
+
+enum NotificationStatus {
+  PENDING
+  PROCESSING
+  SENT
+  FAILED
+  READ
+}
+
+enum ExportStatus {
+  PENDING
+  PROCESSING
+  READY
+  FAILED
+}
+
+enum JobStatus {
+  QUEUED
+  RUNNING
+  SUCCEEDED
+  FAILED
+}
+
+model User {
+  id                    String                @id @default(cuid())
+  email                 String                @unique
+  passwordHash          String
+  displayName           String
+  timezone              String                @default("Asia/Shanghai")
+  locale                String                @default("zh-CN")
+  status                UserStatus            @default(ACTIVE)
+  deleteRequestedAt     DateTime?
+  deleteAfter           DateTime?
+  createdAt             DateTime              @default(now())
+  updatedAt             DateTime              @updatedAt
+  deletedAt             DateTime?
+  sessions              Session[]
+  passwordResetTokens   PasswordResetToken[]
+  ownedWorkspaces       Workspace[]           @relation("WorkspaceOwner")
+  memberships           WorkspaceMember[]
+  observations          Observation[]         @relation("ObservationCreator")
+  actionLogs            ActionLog[]           @relation("ActionCreator")
+  uploadedPhotos        Photo[]               @relation("PhotoUploader")
+  reminders             Reminder[]            @relation("UserReminders")
+  notifications         Notification[]
+  auditLogs             AuditLog[]            @relation("AuditActor")
+  exportJobs            ExportJob[]
+
+  @@index([status, deleteAfter])
+}
+
+model Session {
+  id         String    @id @default(cuid())
+  userId     String
+  tokenHash  String    @unique
+  csrfHash   String
+  expiresAt  DateTime
+  lastSeenAt DateTime  @default(now())
+  revokedAt  DateTime?
+  ip         String?
+  userAgent  String?
+  createdAt  DateTime  @default(now())
+  user       User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+model PasswordResetToken {
+  id        String    @id @default(cuid())
+  userId    String
+  tokenHash String    @unique
+  expiresAt DateTime
+  usedAt    DateTime?
+  createdAt DateTime  @default(now())
+  user      User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, expiresAt])
+}
+
+model Workspace {
+  id         String            @id @default(cuid())
+  name       String
+  ownerUserId String
+  createdAt  DateTime          @default(now())
+  updatedAt  DateTime          @updatedAt
+  owner      User              @relation("WorkspaceOwner", fields: [ownerUserId], references: [id], onDelete: Cascade)
+  members    WorkspaceMember[]
+  balconies  Balcony[]
+  plants     Plant[]
+  observations Observation[]
+  actionLogs ActionLog[]
+  photos     Photo[]
+  reminders  Reminder[]
+  auditLogs  AuditLog[]
+
+  @@index([ownerUserId])
+}
+
+model WorkspaceMember {
+  id          String        @id @default(cuid())
+  workspaceId String
+  userId      String
+  role        WorkspaceRole
+  createdAt   DateTime      @default(now())
+  workspace   Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user        User          @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@unique([workspaceId, userId])
+  @@index([userId])
+}
+
+model Balcony {
+  id          String       @id @default(cuid())
+  workspaceId String
+  name        String
+  orientation String?
+  floor       Int?
+  notes       String?
+  archivedAt  DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  workspace   Workspace    @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  zones       Zone[]
+  observations Observation[]
+  actionLogs  ActionLog[]
+  reminders   Reminder[]
+
+  @@index([workspaceId, archivedAt])
+}
+
+model Zone {
+  id             String       @id @default(cuid())
+  balconyId      String
+  name           String
+  description    String?
+  heightCm       Int?
+  azimuthDegrees Int?
+  sunExposure    LightLevel?
+  sortOrder      Int          @default(0)
+  archivedAt     DateTime?
+  createdAt      DateTime     @default(now())
+  updatedAt      DateTime     @updatedAt
+  balcony        Balcony      @relation(fields: [balconyId], references: [id], onDelete: Cascade)
+  plants         Plant[]
+  observations   Observation[]
+  actionLogs     ActionLog[]
+  photos         Photo[]
+  reminders      Reminder[]
+
+  @@index([balconyId, sortOrder])
+}
+
+model Plant {
+  id             String        @id @default(cuid())
+  workspaceId    String
+  zoneId         String
+  name           String
+  species        String?
+  variety        String?
+  potSizeCm      Int?
+  acquiredAt     DateTime?
+  coverPhotoId   String?       @unique
+  status         PlantStatus   @default(HEALTHY)
+  notes          String?
+  archivedAt     DateTime?
+  createdAt      DateTime      @default(now())
+  updatedAt      DateTime      @updatedAt
+  workspace      Workspace     @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  zone           Zone          @relation(fields: [zoneId], references: [id], onDelete: Restrict)
+  coverPhoto     Photo?        @relation("PlantCoverPhoto", fields: [coverPhotoId], references: [id], onDelete: SetNull)
+  photos         Photo[]       @relation("PlantPhotos")
+  zoneHistory    PlantZoneHistory[]
+  observations   Observation[]
+  actionLogs     ActionLog[]
+  reminders      Reminder[]
+
+  @@index([workspaceId, archivedAt])
+  @@index([zoneId])
+}
+
+model PlantZoneHistory {
+  id          String    @id @default(cuid())
+  plantId     String
+  fromZoneId  String?
+  toZoneId    String
+  movedAt     DateTime
+  actionLogId String?
+  createdAt   DateTime  @default(now())
+  plant       Plant     @relation(fields: [plantId], references: [id], onDelete: Cascade)
+  actionLog   ActionLog? @relation(fields: [actionLogId], references: [id], onDelete: SetNull)
+
+  @@index([plantId, movedAt])
+}
+
+model Observation {
+  id                String               @id @default(cuid())
+  workspaceId       String
+  balconyId         String
+  zoneId            String
+  plantId           String?
+  observedAt        DateTime
+  temperatureC      Decimal              @db.Decimal(5, 2)
+  lightLevel        LightLevel
+  lux               Int?
+  windDirection     WindDirection
+  windDegrees       Int?
+  windSpeedMps      Decimal?             @db.Decimal(5, 2)
+  plantStatus       PlantStatus
+  plantTags         String[]             @default([])
+  soilMoisturePct   Int?
+  soilMoistureSource SoilMoistureSource?
+  notes             String?
+  clientRequestId   String?
+  createdBy         String
+  createdAt         DateTime             @default(now())
+  updatedAt         DateTime             @updatedAt
+  deletedAt         DateTime?
+  workspace         Workspace            @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  balcony           Balcony              @relation(fields: [balconyId], references: [id], onDelete: Restrict)
+  zone              Zone                 @relation(fields: [zoneId], references: [id], onDelete: Restrict)
+  plant             Plant?               @relation(fields: [plantId], references: [id], onDelete: SetNull)
+  creator           User                 @relation("ObservationCreator", fields: [createdBy], references: [id], onDelete: Restrict)
+  photos            Photo[]
+
+  @@unique([createdBy, clientRequestId])
+  @@index([workspaceId, observedAt(sort: Desc)])
+  @@index([workspaceId, zoneId, observedAt(sort: Desc)])
+  @@index([workspaceId, plantId, observedAt(sort: Desc)])
+}
+
+model ActionLog {
+  id              String             @id @default(cuid())
+  workspaceId     String
+  balconyId       String
+  zoneId          String?
+  plantId         String?
+  actionType      ActionType
+  title           String
+  startedAt       DateTime
+  completedAt     DateTime?
+  parametersJson  Json               @default("{}")
+  notes           String?
+  clientRequestId String?
+  createdBy       String
+  createdAt       DateTime           @default(now())
+  updatedAt       DateTime           @updatedAt
+  deletedAt       DateTime?
+  workspace       Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  balcony         Balcony            @relation(fields: [balconyId], references: [id], onDelete: Restrict)
+  zone            Zone?              @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+  plant           Plant?             @relation(fields: [plantId], references: [id], onDelete: SetNull)
+  creator         User               @relation("ActionCreator", fields: [createdBy], references: [id], onDelete: Restrict)
+  photos          Photo[]
+  zoneHistory     PlantZoneHistory[]
+
+  @@unique([createdBy, clientRequestId])
+  @@index([workspaceId, startedAt(sort: Desc)])
+  @@index([plantId, startedAt(sort: Desc)])
+}
+
+model Photo {
+  id             String      @id @default(cuid())
+  workspaceId    String
+  observationId  String?
+  actionLogId    String?
+  plantId        String?
+  zoneId         String?
+  objectKey      String      @unique
+  thumbnailKey   String?
+  originalFilename String
+  mimeType       String
+  sizeBytes      Int
+  width          Int?
+  height         Int?
+  sha256         String
+  capturedAt     DateTime?
+  uploadedAt     DateTime    @default(now())
+  uploadedBy     String
+  deletedAt      DateTime?
+  workspace      Workspace   @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  observation    Observation? @relation(fields: [observationId], references: [id], onDelete: SetNull)
+  actionLog      ActionLog?   @relation(fields: [actionLogId], references: [id], onDelete: SetNull)
+  plant          Plant?       @relation("PlantPhotos", fields: [plantId], references: [id], onDelete: SetNull)
+  zone           Zone?        @relation(fields: [zoneId], references: [id], onDelete: SetNull)
+  coverForPlant  Plant?       @relation("PlantCoverPhoto")
+  uploader       User         @relation("PhotoUploader", fields: [uploadedBy], references: [id], onDelete: Restrict)
+
+  @@index([workspaceId, sha256])
+  @@index([workspaceId, capturedAt(sort: Desc)])
+  @@index([workspaceId, plantId, capturedAt(sort: Desc)])
+  @@index([workspaceId, zoneId, capturedAt(sort: Desc)])
+}
+
+model Reminder {
+  id               String             @id @default(cuid())
+  workspaceId      String
+  userId           String
+  title            String
+  reminderType     ReminderType
+  targetType       TargetType
+  balconyId        String?
+  zoneId           String?
+  plantId          String?
+  triggerMode      TriggerMode
+  timezone         String
+  intervalValue    Int?
+  intervalUnit     IntervalUnit?
+  timeOfDay        String?
+  weekdays         Int[]              @default([])
+  thresholdJson    Json?
+  channelMask      NotificationChannel[] @default([IN_APP])
+  nextRunAt        DateTime?
+  cooldownSeconds  Int                @default(43200)
+  fixedSchedule    Boolean            @default(false)
+  snoozeMinutes    Int                @default(10)
+  isActive         Boolean            @default(true)
+  createdAt        DateTime           @default(now())
+  updatedAt        DateTime           @updatedAt
+  workspace        Workspace          @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
+  user             User               @relation("UserReminders", fields: [userId], references: [id], onDelete: Cascade)
+  balcony          Balcony?           @relation(fields: [balconyId], references: [id], onDelete: Cascade)
+  zone             Zone?              @relation(fields: [zoneId], references: [id], onDelete: Cascade)
+  plant            Plant?             @relation(fields: [plantId], references: [id], onDelete: Cascade)
+  occurrences      ReminderOccurrence[]
+
+  @@index([isActive, nextRunAt])
+  @@index([workspaceId])
+  @@index([userId, isActive])
+}
+
+model ReminderOccurrence {
+  id            String         @id @default(cuid())
+  reminderId    String
+  dueAt         DateTime
+  status          ReminderStatus @default(PENDING)
+  deliveryVersion Int            @default(0)
+  dedupeKey       String         @unique
+  sentAt        DateTime?
+  handledAt     DateTime?
+  snoozedUntil  DateTime?
+  errorMessage  String?
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+  reminder      Reminder       @relation(fields: [reminderId], references: [id], onDelete: Cascade)
+  notifications Notification[]
+
+  @@index([reminderId, dueAt(sort: Desc)])
+  @@index([status, snoozedUntil])
+}
+
+model Notification {
+  id           String              @id @default(cuid())
+  userId       String
+  occurrenceId String?
+  dedupeKey    String?              @unique
+  channel      NotificationChannel
+  title        String
+  body         String
+  status       NotificationStatus  @default(PENDING)
+  readAt       DateTime?
+  sentAt       DateTime?
+  createdAt    DateTime            @default(now())
+  updatedAt    DateTime            @updatedAt
+  user         User                @relation(fields: [userId], references: [id], onDelete: Cascade)
+  occurrence   ReminderOccurrence? @relation(fields: [occurrenceId], references: [id], onDelete: Cascade)
+
+  @@index([userId, readAt, createdAt(sort: Desc)])
+  @@index([status, createdAt])
+}
+
+model AuditLog {
+  id           String    @id @default(cuid())
+  workspaceId  String?
+  actorUserId  String?
+  action       String
+  entityType   String
+  entityId     String?
+  beforeJson   Json?
+  afterJson    Json?
+  ip           String?
+  createdAt    DateTime  @default(now())
+  workspace    Workspace? @relation(fields: [workspaceId], references: [id], onDelete: SetNull)
+  actor        User?      @relation("AuditActor", fields: [actorUserId], references: [id], onDelete: SetNull)
+
+  @@index([workspaceId, createdAt(sort: Desc)])
+  @@index([actorUserId, createdAt(sort: Desc)])
+}
+
+model ExportJob {
+  id          String       @id @default(cuid())
+  userId      String
+  status      ExportStatus @default(PENDING)
+  objectKey   String?
+  error       String?
+  expiresAt   DateTime?
+  createdAt   DateTime     @default(now())
+  updatedAt   DateTime     @updatedAt
+  user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, createdAt(sort: Desc)])
+}

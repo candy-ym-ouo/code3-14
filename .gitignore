@@ -1,0 +1,50 @@
+# Dependencies
+node_modules/
+**/node_modules/
+
+# Build output
+dist/
+**/dist/
+build/
+**/build/
+*.tsbuildinfo
+.vite/
+**/.vite/
+
+# Test and coverage
+coverage/
+playwright-report/
+test-results/
+*.lcov
+
+# Environment and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*.p12
+*.pfx
+
+# Runtime data and uploads
+apps/api/uploads/
+data/
+minio_data/
+postgres_data/
+redis_data/
+*.sqlite
+*.sqlite3
+*.db
+
+# Logs and temporary files
+*.log
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+.DS_Store
+Thumbs.db
+*.swp
+*.swo
+.idea/
+.vscode/

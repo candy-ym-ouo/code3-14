@@ -1,0 +1,29 @@
+{
+  "name": "balcony-microclimate",
+  "version": "1.0.0",
+  "private": true,
+  "workspaces": [
+    "apps/*",
+    "packages/*"
+  ],
+  "scripts": {
+    "build": "npm run build -w @balcony/shared && npm run build -w @balcony/api && npm run build -w @balcony/web",
+    "build:packages": "npm run build -w @balcony/shared",
+    "dev": "npm run build:packages && concurrently -n api,worker,web -c blue,magenta,green \"npm run dev -w @balcony/api\" \"npm run dev:worker -w @balcony/api\" \"npm run dev -w @balcony/web\"",
+    "start": "npm run start -w @balcony/api",
+    "start:worker": "npm run start:worker -w @balcony/api",
+    "test": "npm run test -w @balcony/shared && npm run test -w @balcony/api && npm run test -w @balcony/web",
+    "typecheck": "npm run build -w @balcony/shared && npm run typecheck -w @balcony/api && npm run typecheck -w @balcony/web",
+    "db:generate": "prisma generate --schema apps/api/prisma/schema.prisma",
+    "db:migrate": "prisma migrate deploy --schema apps/api/prisma/schema.prisma",
+    "db:migrate:dev": "prisma migrate dev --schema apps/api/prisma/schema.prisma"
+  },
+  "devDependencies": {
+    "concurrently": "^9.2.1",
+    "prisma": "^6.12.0",
+    "typescript": "^5.9.2"
+  },
+  "engines": {
+    "node": ">=22"
+  }
+}
