@@ -9,6 +9,7 @@ import { analyticsRoutes } from './analytics.js';
 import { reminderRoutes } from './reminders.js';
 import { notificationRoutes } from './notifications.js';
 import { userRoutes } from './users.js';
+import { growthStageRoutes } from './growth-stage.js';
 
 export async function registerRoutes(app: FastifyInstance) {
   await app.register(authRoutes);
@@ -21,4 +22,5 @@ export async function registerRoutes(app: FastifyInstance) {
   await app.register(reminderRoutes);
   await app.register(notificationRoutes);
   await app.register(userRoutes);
+  await app.register(growthStageRoutes);
 }

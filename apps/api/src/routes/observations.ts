@@ -106,6 +106,9 @@ export async function observationRoutes(app: FastifyInstance) {
       const existing = await prisma.observation.findFirst({ where: { createdBy: request.auth!.user.id, clientRequestId: input.clientRequestId } });
       if (existing) {
         await enqueueJob('reminder.threshold', { observationId: existing.id }, { jobId: `threshold-${existing.id}` });
+        if (existing.plantId) {
+          await enqueueJob('growth-stage.recompute', { plantId: existing.plantId }, { jobId: `growth-obs-${existing.id}` });
+        }
         return reply.status(200).send(existing);
       }
     }
@@ -147,12 +150,18 @@ export async function observationRoutes(app: FastifyInstance) {
         });
         if (existing) {
           await enqueueJob('reminder.threshold', { observationId: existing.id }, { jobId: `threshold-${existing.id}` });
+          if (existing.plantId) {
+            await enqueueJob('growth-stage.recompute', { plantId: existing.plantId }, { jobId: `growth-obs-${existing.id}` });
+          }
           return reply.status(200).send(existing);
         }
       }
       throw error;
     }
     await enqueueJob('reminder.threshold', { observationId: observation.id }, { jobId: `threshold-${observation.id}` });
+    if (observation.plantId) {
+      await enqueueJob('growth-stage.recompute', { plantId: observation.plantId }, { jobId: `growth-obs-${observation.id}` });
+    }
     return reply.status(201).send(observation);
   });
 
@@ -179,6 +188,7 @@ export async function observationRoutes(app: FastifyInstance) {
         throw new AppError(422, 'PLANT_ZONE_MISMATCH', '植物在观察时间并不位于该记录的位置');
       }
     }
+    const plantChanged = input.plantId !== undefined && input.plantId !== existing.plantId;
     const updated = await prisma.$transaction(async (tx) => {
       const current = await tx.observation.update({
         where: { id: params.id },
@@ -188,7 +198,6 @@ export async function observationRoutes(app: FastifyInstance) {
           notes: input.notes === null ? null : input.notes,
         },
       });
-      const plantChanged = input.plantId !== undefined && input.plantId !== existing.plantId;
       if (plantChanged && existing.plantId) {
         await refreshPlantStatus(tx, existing.plantId);
       }
@@ -209,6 +218,14 @@ export async function observationRoutes(app: FastifyInstance) {
         { observationId: updated.id },
         { jobId: `threshold-${updated.id}-${updated.updatedAt.getTime()}` },
       );
+    }
+    const recomputePlantIds = new Set<string>();
+    if (input.plantTags !== undefined || input.plantStatus !== undefined || input.observedAt !== undefined) {
+      if (updated.plantId) recomputePlantIds.add(updated.plantId);
+    }
+    if (plantChanged && existing.plantId) recomputePlantIds.add(existing.plantId);
+    for (const plantId of recomputePlantIds) {
+      await enqueueJob('growth-stage.recompute', { plantId }, { jobId: `growth-plant-${plantId}-${Date.now()}` });
     }
     return updated;
   });
@@ -241,6 +258,9 @@ export async function observationRoutes(app: FastifyInstance) {
         });
       }
     });
+    if (existing.plantId) {
+      await enqueueJob('growth-stage.recompute', { plantId: existing.plantId }, { jobId: `growth-plant-${existing.plantId}-${Date.now()}` });
+    }
     return reply.status(204).send();
   });
 }

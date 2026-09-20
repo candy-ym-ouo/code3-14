@@ -134,6 +134,24 @@ enum JobStatus {
   FAILED
 }
 
+enum GrowthStage {
+  UNKNOWN
+  SEEDLING
+  VEGETATIVE
+  BUD
+  FLOWERING
+  FRUITING
+  SENESCENCE
+  DORMANT
+}
+
+enum GrowthStageEventType {
+  AUTO
+  MANUAL
+  RELEASE
+  ROLLBACK
+}
+
 model User {
   id                    String                @id @default(cuid())
   email                 String                @unique
@@ -158,6 +176,7 @@ model User {
   notifications         Notification[]
   auditLogs             AuditLog[]            @relation("AuditActor")
   exportJobs            ExportJob[]
+  growthStageEvents     PlantGrowthStageEvent[] @relation("GrowthStageEventActor")
 
   @@index([status, deleteAfter])
 }
@@ -286,6 +305,8 @@ model Plant {
   observations   Observation[]
   actionLogs     ActionLog[]
   reminders      Reminder[]
+  growthEvidence PlantGrowthEvidence?
+  growthStageEvents PlantGrowthStageEvent[]
 
   @@index([workspaceId, archivedAt])
   @@index([zoneId])
@@ -303,6 +324,58 @@ model PlantZoneHistory {
   actionLog   ActionLog? @relation(fields: [actionLogId], references: [id], onDelete: SetNull)
 
   @@index([plantId, movedAt])
+}
+
+/// 证据层：始终可由时间序列重算、允许覆盖；不构成最终判断。
+model PlantGrowthEvidence {
+  id                String      @id @default(cuid())
+  plantId           String      @unique
+  workspaceId       String
+  inferredStage     GrowthStage
+  confidence        Decimal     @db.Decimal(5, 4)
+  scoresJson        Json
+  signalsJson       Json
+  inputFingerprint  String
+  engineVersion     String
+  inferredFromDataAt DateTime?
+  computedAt        DateTime    @updatedAt
+  createdAt         DateTime    @default(now())
+  plant             Plant       @relation(fields: [plantId], references: [id], onDelete: Cascade)
+
+  @@index([workspaceId])
+}
+
+/// 判断层：只追加的事件账本。人工修正与回退永不被证据重算覆盖。
+model PlantGrowthStageEvent {
+  id               String                 @id @default(cuid())
+  sequence         Int
+  plantId          String
+  workspaceId      String
+  eventType        GrowthStageEventType
+  /// AUTO/MANUAL 记录其判断的阶段；RELEASE/ROLLBACK 为 null
+  stage            GrowthStage?
+  reason           String
+  /// 决策时冻结的证据与因果链（证据快照、被引用事件），事后重算不会改写
+  reasonChainJson  Json
+  /// MANUAL 锁定后，证据重算仍运行但不允许产生新的 AUTO 生效判断
+  locked           Boolean                @default(false)
+  /// ROLLBACK 事件指向被回退的 AUTO/MANUAL 事件
+  targetEventId    String?
+  voidedAt         DateTime?
+  voidedByEventId  String?
+  createdBy        String?
+  createdAt        DateTime               @default(now())
+  plant            Plant                  @relation(fields: [plantId], references: [id], onDelete: Cascade)
+  creator          User?                  @relation("GrowthStageEventActor", fields: [createdBy], references: [id], onDelete: SetNull)
+  targetEvent      PlantGrowthStageEvent? @relation("GrowthStageEventRollback", fields: [targetEventId], references: [id])
+  rollbackEvents   PlantGrowthStageEvent[] @relation("GrowthStageEventRollback")
+  voidedBy         PlantGrowthStageEvent? @relation("GrowthStageEventVoid", fields: [voidedByEventId], references: [id])
+  voidedEvents     PlantGrowthStageEvent[] @relation("GrowthStageEventVoid")
+
+  @@unique([plantId, sequence])
+  @@index([workspaceId, createdAt(sort: Desc)])
+  @@index([plantId, createdAt])
+  @@index([targetEventId])
 }
 
 model Observation {

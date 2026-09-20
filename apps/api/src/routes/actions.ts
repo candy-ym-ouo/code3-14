@@ -7,6 +7,7 @@ import { requireAuth } from '../lib/auth.js';
 import { AppError, parseOrThrow } from '../lib/errors.js';
 import { requireWorkspaceRole } from '../services/authorization.js';
 import { resolvePlantZoneAtTime } from '../services/plant-location.js';
+import { enqueueJob } from '../queue.js';
 
 async function validateActionAssociations(input: {
   workspaceId: string;
@@ -133,6 +134,9 @@ export async function actionRoutes(app: FastifyInstance) {
       }
       throw error;
     }
+    if (action.plantId) {
+      await enqueueJob('growth-stage.recompute', { plantId: action.plantId }, { jobId: `growth-plant-${action.plantId}-${Date.now()}` });
+    }
     return reply.status(201).send(action);
   });
 
@@ -163,8 +167,8 @@ export async function actionRoutes(app: FastifyInstance) {
     if (completedAt && completedAt < startedAt) {
       throw new AppError(422, 'INVALID_ACTION_TIME', '完成时间不能早于开始时间');
     }
-    return prisma.$transaction(async (tx) => {
-      const updated = await tx.actionLog.update({
+    const updated = await prisma.$transaction(async (tx) => {
+      return tx.actionLog.update({
         where: { id: params.id },
         data: {
           ...input,
@@ -174,8 +178,11 @@ export async function actionRoutes(app: FastifyInstance) {
           notes: input.notes === null ? null : input.notes,
         },
       });
-      return updated;
     });
+    if (updated.plantId && (input.actionType !== undefined || input.startedAt !== undefined)) {
+      await enqueueJob('growth-stage.recompute', { plantId: updated.plantId }, { jobId: `growth-plant-${updated.plantId}-${Date.now()}` });
+    }
+    return updated;
   });
 
   app.delete('/actions/:id', async (request, reply) => {
@@ -198,6 +205,9 @@ export async function actionRoutes(app: FastifyInstance) {
         data: { deletedAt },
       }),
     ]);
+    if (existing.plantId) {
+      await enqueueJob('growth-stage.recompute', { plantId: existing.plantId }, { jobId: `growth-plant-${existing.plantId}-${Date.now()}` });
+    }
     return reply.status(204).send();
   });
 }

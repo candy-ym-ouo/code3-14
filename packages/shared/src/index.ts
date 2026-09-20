@@ -11,6 +11,19 @@ export const REMINDER_TYPES = ['WATERING', 'REPOTTING', 'OBSERVATION', 'TEMPERAT
 export const TRIGGER_MODES = ['INTERVAL', 'ONCE', 'THRESHOLD'] as const;
 export const INTERVAL_UNITS = ['MINUTE', 'DAY', 'WEEK', 'MONTH'] as const;
 
+// UNKNOWN 表示证据不足；其余阶段按植物生命周期顺序排列
+export const GROWTH_STAGES = [
+  'UNKNOWN',
+  'SEEDLING',
+  'VEGETATIVE',
+  'BUD',
+  'FLOWERING',
+  'FRUITING',
+  'SENESCENCE',
+  'DORMANT',
+] as const;
+export const GROWTH_STAGE_EVENT_TYPES = ['AUTO', 'MANUAL', 'RELEASE', 'ROLLBACK'] as const;
+
 export const booleanQuerySchema = z.preprocess((value) => {
   if (value === undefined) return false;
   if (typeof value === 'boolean') return value;
@@ -162,8 +175,30 @@ export const paginationSchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
 
+export const growthStageOverrideSchema = z.object({
+  stage: z.enum(GROWTH_STAGES).refine((value) => value !== 'UNKNOWN', {
+    message: '人工修正必须指定明确阶段',
+  }),
+  reason: z.string().trim().min(2).max(500),
+});
+
+export const growthStageReleaseSchema = z.object({
+  reason: z.string().trim().min(2).max(500),
+});
+
+export const growthStageRollbackSchema = z.object({
+  targetEventId: z.string().cuid(),
+  reason: z.string().trim().min(2).max(500),
+});
+
+export type GrowthStage = (typeof GROWTH_STAGES)[number];
+export type GrowthStageEventType = (typeof GROWTH_STAGE_EVENT_TYPES)[number];
+
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type ObservationInput = z.infer<typeof observationSchema>;
 export type ActionInput = z.infer<typeof actionSchema>;
 export type ReminderInput = z.infer<typeof reminderSchema>;
+export type GrowthStageOverrideInput = z.infer<typeof growthStageOverrideSchema>;
+export type GrowthStageReleaseInput = z.infer<typeof growthStageReleaseSchema>;
+export type GrowthStageRollbackInput = z.infer<typeof growthStageRollbackSchema>;
