@@ -134,6 +134,27 @@ enum JobStatus {
   FAILED
 }
 
+enum GrowthStage {
+  GERMINATION
+  VEGETATIVE
+  BUD
+  FLOWERING
+  FRUITING
+  DORMANT
+}
+
+enum StageEventSource {
+  AUTO_INFERRED
+  MANUAL_CORRECTION
+  ROLLBACK
+}
+
+enum StageConfidence {
+  HIGH
+  MEDIUM
+  LOW
+}
+
 model User {
   id                    String                @id @default(cuid())
   email                 String                @unique
@@ -158,6 +179,7 @@ model User {
   notifications         Notification[]
   auditLogs             AuditLog[]            @relation("AuditActor")
   exportJobs            ExportJob[]
+  stageEvents           PlantStageEvent[]
 
   @@index([status, deleteAfter])
 }
@@ -286,6 +308,7 @@ model Plant {
   observations   Observation[]
   actionLogs     ActionLog[]
   reminders      Reminder[]
+  stageEvents    PlantStageEvent[]
 
   @@index([workspaceId, archivedAt])
   @@index([zoneId])
@@ -511,4 +534,40 @@ model ExportJob {
   user        User         @relation(fields: [userId], references: [id], onDelete: Cascade)
 
   @@index([userId, createdAt(sort: Desc)])
+}
+
+/// 植物生长阶段事件：只追加、不物理删除。
+/// 自动推断结果可被重算并标记 superseded；人工判断（MANUAL_CORRECTION / ROLLBACK）
+/// 永不被自动推断覆盖。回退通过新的 ROLLBACK 事件表达，并保留完整原因链。
+model PlantStageEvent {
+  id           String             @id @default(cuid())
+  plantId      String
+  stage        GrowthStage
+  source       StageEventSource
+  confidence   StageConfidence?
+  /// 该阶段判定生效的起始时间（人工修正可回填历史日期）
+  validFrom    DateTime
+  reason       String
+  /// 可重算证据快照：规则版本、输入窗口、命中信号、各阶段得分、置信度
+  evidenceJson Json               @default("{}")
+  ruleVersion  String?
+  supersededAt DateTime?
+  supersededById String?
+  createdBy    String
+  createdAt    DateTime           @default(now())
+  updatedAt    DateTime           @updatedAt
+
+  plant        Plant              @relation(fields: [plantId], references: [id], onDelete: Cascade)
+  creator      User               @relation(fields: [createdBy], references: [id], onDelete: Restrict)
+
+  /// 原因链：本事件因哪一事件产生（自动推断锚定的人工事件 / 回退的目标事件 / 被取代的推断）
+  basedOnEvent   PlantStageEvent? @relation("StageEventBasedOn", fields: [basedOnEventId], references: [id], onDelete: SetNull)
+  basedOnEventId String?
+  derivedEvents  PlantStageEvent[] @relation("StageEventBasedOn")
+  supersedingEvents PlantStageEvent[] @relation("StageSupersededBy")
+  supersededBy   PlantStageEvent? @relation("StageSupersededBy", fields: [supersededById], references: [id], onDelete: SetNull)
+
+  @@index([plantId, validFrom(sort: Desc)])
+  @@index([plantId, supersededAt])
+  @@index([plantId, createdAt(sort: Desc)])
 }

@@ -57,6 +57,7 @@ export async function plantRoutes(app: FastifyInstance) {
         observations: { where: { deletedAt: null }, orderBy: { observedAt: 'desc' }, take: 50, include: { photos: true, zone: true } },
         actionLogs: { where: { deletedAt: null }, orderBy: { startedAt: 'desc' }, take: 50, include: { photos: true } },
         reminders: { where: { isActive: true }, orderBy: { nextRunAt: 'asc' } },
+        stageEvents: { orderBy: [{ validFrom: 'desc' }, { createdAt: 'desc' }], take: 20 },
       },
     });
     if (!plant) throw new AppError(404, 'PLANT_NOT_FOUND', '植物不存在');

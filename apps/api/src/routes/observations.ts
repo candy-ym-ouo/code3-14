@@ -9,6 +9,11 @@ import { requireWorkspaceRole } from '../services/authorization.js';
 import { enqueueJob } from '../queue.js';
 import { resolvePlantZoneAtTime } from '../services/plant-location.js';
 
+function enqueueStageRecompute(plantId: string | null | undefined) {
+  if (!plantId) return;
+  void enqueueJob('plant-stage.recompute', { plantId });
+}
+
 async function refreshPlantStatus(tx: Prisma.TransactionClient, plantId: string) {
   const latest = await tx.observation.findFirst({
     where: { plantId, deletedAt: null },
@@ -106,6 +111,7 @@ export async function observationRoutes(app: FastifyInstance) {
       const existing = await prisma.observation.findFirst({ where: { createdBy: request.auth!.user.id, clientRequestId: input.clientRequestId } });
       if (existing) {
         await enqueueJob('reminder.threshold', { observationId: existing.id }, { jobId: `threshold-${existing.id}` });
+        enqueueStageRecompute(existing.plantId);
         return reply.status(200).send(existing);
       }
     }
@@ -147,12 +153,14 @@ export async function observationRoutes(app: FastifyInstance) {
         });
         if (existing) {
           await enqueueJob('reminder.threshold', { observationId: existing.id }, { jobId: `threshold-${existing.id}` });
+          enqueueStageRecompute(existing.plantId);
           return reply.status(200).send(existing);
         }
       }
       throw error;
     }
     await enqueueJob('reminder.threshold', { observationId: observation.id }, { jobId: `threshold-${observation.id}` });
+    enqueueStageRecompute(observation.plantId);
     return reply.status(201).send(observation);
   });
 
@@ -209,6 +217,8 @@ export async function observationRoutes(app: FastifyInstance) {
         { observationId: updated.id },
         { jobId: `threshold-${updated.id}-${updated.updatedAt.getTime()}` },
       );
+      enqueueStageRecompute(existing.plantId);
+      if (input.plantId && input.plantId !== existing.plantId) enqueueStageRecompute(input.plantId);
     }
     return updated;
   });
@@ -241,6 +251,7 @@ export async function observationRoutes(app: FastifyInstance) {
         });
       }
     });
+    enqueueStageRecompute(existing.plantId);
     return reply.status(204).send();
   });
 }

@@ -6,6 +6,9 @@ export const WIND_DIRECTIONS = [
   'S', 'SSW', 'SW', 'WSW', 'W', 'WNW', 'NW', 'NNW',
 ] as const;
 export const PLANT_STATUSES = ['HEALTHY', 'WATCH', 'CONCERN', 'CRITICAL'] as const;
+export const GROWTH_STAGES = ['GERMINATION', 'VEGETATIVE', 'BUD', 'FLOWERING', 'FRUITING', 'DORMANT'] as const;
+export const STAGE_EVENT_SOURCES = ['AUTO_INFERRED', 'MANUAL_CORRECTION', 'ROLLBACK'] as const;
+export const STAGE_CONFIDENCES = ['HIGH', 'MEDIUM', 'LOW'] as const;
 export const ACTION_TYPES = ['SHADE', 'WATER', 'REPOT', 'MOVE', 'FERTILIZE', 'PRUNE', 'CUSTOM'] as const;
 export const REMINDER_TYPES = ['WATERING', 'REPOTTING', 'OBSERVATION', 'TEMPERATURE', 'LIGHT', 'CUSTOM'] as const;
 export const TRIGGER_MODES = ['INTERVAL', 'ONCE', 'THRESHOLD'] as const;
@@ -162,8 +165,21 @@ export const paginationSchema = z.object({
   limit: z.coerce.number().int().min(1).max(100).default(20),
 });
 
+export const stageCorrectionSchema = z.object({
+  stage: z.enum(GROWTH_STAGES),
+  validFrom: isoDateTimeSchema.optional(),
+  reason: z.string().trim().min(1, '必须填写修正理由').max(500),
+});
+
+export const stageRollbackSchema = z.object({
+  eventId: z.string().cuid(),
+  reason: z.string().trim().min(1, '必须填写回退原因').max(500),
+});
+
 export type RegisterInput = z.infer<typeof registerSchema>;
 export type LoginInput = z.infer<typeof loginSchema>;
 export type ObservationInput = z.infer<typeof observationSchema>;
 export type ActionInput = z.infer<typeof actionSchema>;
 export type ReminderInput = z.infer<typeof reminderSchema>;
+export type StageCorrectionInput = z.infer<typeof stageCorrectionSchema>;
+export type StageRollbackInput = z.infer<typeof stageRollbackSchema>;

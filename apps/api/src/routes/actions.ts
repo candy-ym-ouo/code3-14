@@ -7,6 +7,7 @@ import { requireAuth } from '../lib/auth.js';
 import { AppError, parseOrThrow } from '../lib/errors.js';
 import { requireWorkspaceRole } from '../services/authorization.js';
 import { resolvePlantZoneAtTime } from '../services/plant-location.js';
+import { enqueueJob } from '../queue.js';
 
 async function validateActionAssociations(input: {
   workspaceId: string;
@@ -133,6 +134,7 @@ export async function actionRoutes(app: FastifyInstance) {
       }
       throw error;
     }
+    if (action.plantId) void enqueueJob('plant-stage.recompute', { plantId: action.plantId });
     return reply.status(201).send(action);
   });
 
@@ -175,6 +177,9 @@ export async function actionRoutes(app: FastifyInstance) {
         },
       });
       return updated;
+    }).then((updated) => {
+      if (existing.plantId) void enqueueJob('plant-stage.recompute', { plantId: existing.plantId });
+      return updated;
     });
   });
 
@@ -198,6 +203,7 @@ export async function actionRoutes(app: FastifyInstance) {
         data: { deletedAt },
       }),
     ]);
+    if (existing.plantId) void enqueueJob('plant-stage.recompute', { plantId: existing.plantId });
     return reply.status(204).send();
   });
 }

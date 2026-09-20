@@ -8,6 +8,7 @@ import { generateThumbnail } from './services/photo-service.js';
 import { enqueuePendingEmailNotifications, processDueReminders, processSnoozedReminders } from './services/notifications.js';
 import { evaluateThresholdReminders } from './services/threshold-reminders.js';
 import { generateUserExport } from './services/export-service.js';
+import { recomputePlantStage } from './services/growth-stage.js';
 
 async function processEmail(notificationId: string) {
   const staleBefore = new Date(Date.now() - 15 * 60_000);
@@ -104,6 +105,9 @@ async function handleJob(job: Job) {
   }
   if (job.name === 'reminder.threshold') {
     return evaluateThresholdReminders(String(job.data.observationId));
+  }
+  if (job.name === 'plant-stage.recompute') {
+    return recomputePlantStage(String(job.data.plantId));
   }
   if (job.name === 'photo.thumbnail') {
     return { generated: await generateThumbnail(String(job.data.photoId)) };
